@@ -3,6 +3,8 @@
 #include <string>
 #include <random>
 #include <chrono>
+#include <sstream>
+#include <iomanip>
 
 struct Validator {
     std::string name;
@@ -14,15 +16,41 @@ private:
     int id;
     std::string data;
     std::string validator;
+    std::string hash;
+    int nonce;
+
+    // Simple hash function for demonstration (not cryptographically secure)
+    std::string computeHash() const {
+        std::stringstream ss;
+        ss << id << data << validator << nonce;
+        std::string input = ss.str();
+        size_t hashVal = 0;
+        for (char c : input) {
+            hashVal = (hashVal * 31 + c) % 1000000007; // Simple hash
+        }
+        std::stringstream hashStream;
+        hashStream << std::hex << std::setw(8) << std::setfill('0') << hashVal;
+        return hashStream.str();
+    }
 
 public:
-    Block(int blockId, const std::string& blockData) : id(blockId), data(blockData) {}
+    Block(int blockId, const std::string& blockData) : id(blockId), data(blockData), nonce(0), hash("") {}
 
     void validate(const std::string& val) {
         validator = val;
+        hash = computeHash();
     }
 
     std::string getValidator() const { return validator; }
+
+    void mineBlock(int difficulty) {
+        std::string target(difficulty, '0');
+        do {
+            nonce++;
+            hash = computeHash();
+        } while (hash.substr(0, difficulty) != target);
+        std::cout << "Bloc PoW mine avec hash: " << hash << ", Nonce: " << nonce << "\n";
+    }
 };
 
 class PoSBlockchain {
@@ -33,12 +61,10 @@ private:
     std::string selectValidator() {
         double totalStake = 0;
         for (const auto& v : validators) totalStake += v.stake;
-
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<> dis(0, totalStake);
         double random = dis(gen);
-
         double cumulative = 0;
         for (const auto& v : validators) {
             cumulative += v.stake;
@@ -68,15 +94,13 @@ public:
 int main() {
     std::vector<Validator> validators = {{"Alice", 50}, {"Bob", 30}, {"Charlie", 20}};
     PoSBlockchain posBc(validators);
+    posBc.addBlock("Transaction PoS 1");
 
-    posBc.addBlock("Transaction PoS 1"); // Exemple PoS
-    // Comparaison PoW (simplifiée)
     Block powBlock(1, "Transaction PoW 1");
     auto start = std::chrono::high_resolution_clock::now();
-    powBlock.mineBlock(3); // Difficulté 3
+    powBlock.mineBlock(3);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Bloc PoW Temps: " << duration.count() << " ms\n";
-
     return 0;
 }
