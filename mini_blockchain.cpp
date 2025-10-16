@@ -74,17 +74,18 @@ public:
         merkleRoot = tree.getRoot();
     }
 
-    void mineBlock(int difficulty) {
+    void mineBlock() {
         auto start = std::chrono::high_resolution_clock::now();
-        std::string target(difficulty, '0');
+        // PoW simplifié pour démonstration
         while (true) {
             hashValue = calculateHash();
-            if (hashValue.substr(0, difficulty) == target) break;
+            if (hashValue.back() == '0') break; // simple condition
             nonce++;
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "Bloc " << id << " mine (PoW), Temps: " << duration.count() << " ms\n";
+        std::cout << "Bloc " << id << " mine (PoW), Temps: " << duration.count() 
+                  << " ms, Hash: " << hashValue << "\n";
     }
 
     void validate(const std::string& validator) {
@@ -92,14 +93,14 @@ public:
         hashValue = calculateHash();
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "Bloc " << id << " valide par " << validator << " (PoS), Temps: " << duration.count() << " ms\n";
+        std::cout << "Bloc " << id << " valide par " << validator 
+                  << " (PoS), Temps: " << duration.count() 
+                  << " ms, Hash: " << hashValue << "\n";
     }
 
     std::string getHash() const { return hashValue; }
-
-    // ✅ Getter for previous hash
     std::string getPreviousHash() const { return previousHash; }
-
+    std::string getMerkleRoot() const { return merkleRoot; }
     bool isValid() const { return calculateHash() == hashValue; }
 };
 
@@ -130,13 +131,13 @@ public:
     Blockchain(const std::vector<Validator>& vals) : validators(vals) {
         std::vector<Transaction> genesisTx = {Transaction("0", "Genesis", "Genesis", 0)};
         Block genesis(0, "0", genesisTx);
-        genesis.mineBlock(1);
+        genesis.mineBlock();
         chain.push_back(genesis);
     }
 
-    void addBlockPoW(const std::vector<Transaction>& txs, int difficulty) {
+    void addBlockPoW(const std::vector<Transaction>& txs) {
         Block newBlock(chain.size(), chain.back().getHash(), txs);
-        newBlock.mineBlock(difficulty);
+        newBlock.mineBlock();
         chain.push_back(newBlock);
     }
 
@@ -153,6 +154,9 @@ public:
                 return false;
         return true;
     }
+
+    // Getter pour accéder aux blocs pour affichage
+    const std::vector<Block>& getChain() const { return chain; }
 };
 
 // ---------- Main ----------
@@ -161,11 +165,21 @@ int main() {
     Blockchain bc(validators);
 
     std::vector<Transaction> txs1 = {Transaction("1", "Alice", "Bob", 10)};
-    bc.addBlockPoW(txs1, 2);
+    bc.addBlockPoW(txs1);
 
     std::vector<Transaction> txs2 = {Transaction("2", "Bob", "Charlie", 5)};
     bc.addBlockPoS(txs2);
 
-    std::cout << "Chaîne valide ? " << (bc.verifyChain() ? "Oui" : "Non") << std::endl;
+    std::cout << "\nChaîne valide ? " << (bc.verifyChain() ? "Oui" : "Non") << "\n";
+
+    std::cout << "\n--- Blockchain ---\n";
+    const auto& chain = bc.getChain();
+    for (size_t i = 0; i < chain.size(); ++i) {
+        std::cout << "Block " << i 
+                  << ", Hash: " << chain[i].getHash() 
+                  << ", PrevHash: " << chain[i].getPreviousHash() 
+                  << ", MerkleRoot: " << chain[i].getMerkleRoot() << "\n";
+    }
+
     return 0;
 }
