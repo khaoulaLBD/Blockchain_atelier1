@@ -5,6 +5,7 @@
 #include <chrono>
 #include <random>
 #include <sstream>
+#include <ctime>
 
 // ---------- Transaction ----------
 class Transaction {
@@ -56,6 +57,7 @@ struct Validator { std::string name; double stake; };
 class Block {
 private:
     int id;
+    std::time_t timestamp;
     std::string previousHash, merkleRoot, hashValue;
     int nonce;
     std::vector<Transaction> transactions;
@@ -63,39 +65,41 @@ private:
     std::string calculateHash() const {
         std::hash<std::string> hasher;
         std::stringstream ss;
-        ss << id << previousHash << merkleRoot << nonce;
+        ss << id << timestamp << previousHash << merkleRoot << nonce;
         return std::to_string(hasher(ss.str()));
     }
 
 public:
     Block(int blockId, const std::string& prevHash, const std::vector<Transaction>& txs)
         : id(blockId), previousHash(prevHash), nonce(0), transactions(txs) {
+        timestamp = std::time(nullptr);
         MerkleTree tree(txs);
         merkleRoot = tree.getRoot();
     }
 
-    void mineBlock() {
+    // PoW simplifié
+    void mineBlock(int difficulty) {
         auto start = std::chrono::high_resolution_clock::now();
-        // PoW simplifié pour démonstration
         while (true) {
             hashValue = calculateHash();
-            if (hashValue.back() == '0') break; // simple condition
+            // condition simple pour finir rapidement
+            if (hashValue.back() == '0') break;
             nonce++;
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "Bloc " << id << " mine (PoW), Temps: " << duration.count() 
+        std::cout << "[PoW] Block " << id << " mined in " << duration.count() 
                   << " ms, Hash: " << hashValue << "\n";
     }
 
-    void validate(const std::string& validator) {
+    // PoS
+    void validatePoS(const std::string& validator) {
         auto start = std::chrono::high_resolution_clock::now();
-        hashValue = calculateHash();
+        hashValue = calculateHash(); // validation instantanée
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "Bloc " << id << " valide par " << validator 
-                  << " (PoS), Temps: " << duration.count() 
-                  << " ms, Hash: " << hashValue << "\n";
+        std::cout << "[PoS] Block " << id << " validated by " << validator 
+                  << " in " << duration.count() << " ms, Hash: " << hashValue << "\n";
     }
 
     std::string getHash() const { return hashValue; }
@@ -129,22 +133,23 @@ private:
 
 public:
     Blockchain(const std::vector<Validator>& vals) : validators(vals) {
+        // Genesis block
         std::vector<Transaction> genesisTx = {Transaction("0", "Genesis", "Genesis", 0)};
         Block genesis(0, "0", genesisTx);
-        genesis.mineBlock();
+        genesis.mineBlock(1); // PoW simple
         chain.push_back(genesis);
     }
 
-    void addBlockPoW(const std::vector<Transaction>& txs) {
+    void addBlockPoW(const std::vector<Transaction>& txs, int difficulty) {
         Block newBlock(chain.size(), chain.back().getHash(), txs);
-        newBlock.mineBlock();
+        newBlock.mineBlock(difficulty);
         chain.push_back(newBlock);
     }
 
     void addBlockPoS(const std::vector<Transaction>& txs) {
         Block newBlock(chain.size(), chain.back().getHash(), txs);
         std::string val = selectValidator();
-        newBlock.validate(val);
+        newBlock.validatePoS(val);
         chain.push_back(newBlock);
     }
 
@@ -155,7 +160,6 @@ public:
         return true;
     }
 
-    // Getter pour accéder aux blocs pour affichage
     const std::vector<Block>& getChain() const { return chain; }
 };
 
@@ -164,11 +168,17 @@ int main() {
     std::vector<Validator> validators = {{"Alice", 50}, {"Bob", 30}, {"Charlie", 20}};
     Blockchain bc(validators);
 
-    std::vector<Transaction> txs1 = {Transaction("1", "Alice", "Bob", 10)};
-    bc.addBlockPoW(txs1);
+    std::cout << "\n--- Adding blocks with PoW ---\n";
+    for (int i = 1; i <= 3; ++i) {
+        std::vector<Transaction> txs = {Transaction(std::to_string(i), "Alice", "Bob", i*10)};
+        bc.addBlockPoW(txs, 1); // difficulté faible pour demo rapide
+    }
 
-    std::vector<Transaction> txs2 = {Transaction("2", "Bob", "Charlie", 5)};
-    bc.addBlockPoS(txs2);
+    std::cout << "\n--- Adding blocks with PoS ---\n";
+    for (int i = 4; i <= 6; ++i) {
+        std::vector<Transaction> txs = {Transaction(std::to_string(i), "Bob", "Charlie", i*5)};
+        bc.addBlockPoS(txs);
+    }
 
     std::cout << "\nChaîne valide ? " << (bc.verifyChain() ? "Oui" : "Non") << "\n";
 
